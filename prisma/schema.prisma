@@ -1,0 +1,321 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  emailVerified DateTime?
+  image        String?
+  passwordHash String?
+  roles        String[]
+  createdAt    DateTime  @default(now()) @map("fecha_creacion")
+
+  accounts      Account[]
+  sessions      Session[]
+  servidor      Servidor?
+
+  @@map("usuarios")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("cuentas")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sesiones")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("tokens_verificacion")
+}
+
+model MensajeContacto {
+  id        String   @id @default(cuid())
+  nombre    String
+  contacto  String
+  categoria String
+  mensaje   String
+  estado    String   @default("PENDIENTE")
+  createdAt DateTime @default(now()) @map("fecha_creacion")
+
+  @@map("mensajes_contacto")
+}
+
+model Evento {
+  id                 String              @id @default(cuid())
+  titulo             String
+  descripcion        String
+  lugar              String?
+  fecha              DateTime
+  fechaFin           DateTime?
+  imagen             String?
+  slug               String              @unique
+  requiereInscripcion Boolean            @default(false) @map("requiere_inscripcion")
+  publicado          Boolean             @default(true)
+  createdAt          DateTime            @default(now()) @map("fecha_creacion")
+
+  inscripciones InscripcionEvento[]
+
+  @@map("eventos")
+}
+
+model InscripcionEvento {
+  id         String   @id @default(cuid())
+  eventoId   String
+  nombre     String
+  contacto   String
+  comentario String?
+  createdAt  DateTime @default(now()) @map("fecha_creacion")
+
+  evento Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@map("inscripciones_eventos")
+}
+
+model Sermon {
+  id          String   @id @default(cuid())
+  titulo      String
+  serie       String
+  textoBiblico String?  @map("texto_biblico")
+  fecha       DateTime
+  imagen      String?
+  linkAudio   String?   @map("link_audio")
+  linkVideo   String?   @map("link_video")
+  publicado   Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("fecha_creacion")
+
+  @@map("sermones")
+}
+
+model CohorteCasasOasis {
+  id             String                     @id @default(cuid())
+  fechaInicio    DateTime                   @map("fecha_inicio")
+  fechaFin       DateTime                   @map("fecha_fin")
+  cupo           Int
+  activa         Boolean                    @default(true)
+  createdAt      DateTime                   @default(now()) @map("fecha_creacion")
+
+  inscripciones InscripcionCasasOasis[]
+
+  @@map("cohortes_casas_oasis")
+}
+
+model InscripcionCasasOasis {
+  id              String             @id @default(cuid())
+  cohorteId       String             @map("cohorte_id")
+  nombre          String
+  contacto        String
+  comentario      String?
+  estado          String             @default("INSCRITO")
+  createdAt       DateTime           @default(now()) @map("fecha_inscripcion")
+
+  cohorte CohorteCasasOasis @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
+
+  @@map("inscripciones_casas_oasis")
+}
+
+model EventoBautismo {
+  id         String                 @id @default(cuid())
+  fecha      DateTime
+  lugar      String
+  requisitos String
+  createdAt  DateTime               @default(now()) @map("fecha_creacion")
+
+  inscripciones InscripcionBautismo[]
+
+  @@map("evento_bautismo")
+}
+
+model InscripcionBautismo {
+  id              String        @id @default(cuid())
+  eventoBautismoId String       @map("evento_bautismo_id")
+  nombre          String
+  edad            Int
+  contacto        String
+  tomoCharla      Boolean       @default(false) @map("tomo_charla")
+  comentario      String?
+  estado          String        @default("NUEVO")
+  createdAt       DateTime      @default(now()) @map("fecha_inscripcion")
+
+  eventoBautismo EventoBautismo @relation(fields: [eventoBautismoId], references: [id], onDelete: Cascade)
+
+  @@map("inscripciones_bautismo")
+}
+
+model CategoriaTransaccion {
+  id       String @id @default(cuid())
+  tipo     String
+  nombre   String
+  orden    Int    @default(0)
+
+  transacciones Transaccion[]
+
+  @@unique([tipo, nombre])
+  @@map("categorias_transaccion")
+}
+
+model Transaccion {
+  id            String   @id @default(cuid())
+  tipo          String
+  categoriaId   String   @map("categoria_id")
+  monto         Int
+  fecha         DateTime
+  nota          String?
+  registradoPor String?  @map("registrado_por")
+
+  categoria CategoriaTransaccion @relation(fields: [categoriaId], references: [id])
+
+  @@map("transacciones")
+}
+
+model Servidor {
+  id            String       @id @default(cuid())
+  nombre        String
+  telefono      String?
+  correo        String?
+  rolesServicio String[]     @map("roles_servicio")
+  usuarioId     String?      @unique @map("usuario_id")
+
+  usuario  User?           @relation(fields: [usuarioId], references: [id])
+  asignaciones Asignacion[]
+
+  @@map("servidores")
+}
+
+model Servicio {
+  id        String  @id @default(cuid())
+  tipo      String
+  fecha     DateTime
+
+  asignaciones Asignacion[]
+  setlist   Setlist?
+
+  @@map("servicios")
+}
+
+model Asignacion {
+  id            String   @id @default(cuid())
+  servicioId    String   @map("servicio_id")
+  servidorId    String   @map("servidor_id")
+  rolServicio   String   @map("rol_servicio")
+
+  servicio Servicio @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+  servidor Servidor @relation(fields: [servidorId], references: [id], onDelete: Cascade)
+
+  @@unique([servicioId, servidorId, rolServicio])
+  @@map("asignaciones")
+}
+
+model Cancion {
+  id        String    @id @default(cuid())
+  titulo    String
+  tono      String?
+  linkLetra String?   @map("link_letra")
+  linkPista String?   @map("link_pista")
+
+  setlistCanciones SetlistCancion[]
+
+  @@map("canciones")
+}
+
+model Setlist {
+  id         String           @id @default(cuid())
+  servicioId String           @unique @map("servicio_id")
+
+  servicio Servicio           @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+  canciones SetlistCancion[]
+
+  @@map("setlists")
+}
+
+model SetlistCancion {
+  id         String  @id @default(cuid())
+  setlistId  String  @map("setlist_id")
+  cancionId  String  @map("cancion_id")
+  orden      Int
+
+  setlist Setlist  @relation(fields: [setlistId], references: [id], onDelete: Cascade)
+  cancion Cancion @relation(fields: [cancionId], references: [id], onDelete: Cascade)
+
+  @@unique([setlistId, cancionId])
+  @@map("setlist_canciones")
+}
+
+model EtapaDiscipulado {
+  id        String      @id @default(cuid())
+  nombre    String
+  orden     Int         @default(0)
+  activa    Boolean     @default(true)
+
+  discipulos Discipulo[]
+
+  @@map("etapas_discipulado")
+}
+
+model Discipulo {
+  id        String              @id @default(cuid())
+  nombre    String
+  contacto  String
+  etapaId   String              @map("etapa_id")
+
+  etapa       EtapaDiscipulado     @relation(fields: [etapaId], references: [id])
+  seguimientos SeguimientoDiscipulado[]
+
+  @@map("discipulos")
+}
+
+model SeguimientoDiscipulado {
+  id          String   @id @default(cuid())
+  discipuloId String   @map("discipulo_id")
+  fecha       DateTime @default(now())
+  nota        String
+
+  discipulo Discipulo @relation(fields: [discipuloId], references: [id], onDelete: Cascade)
+
+  @@map("seguimiento_discipulado")
+}
+
+model FotoGaleria {
+  id         String   @id @default(cuid())
+  url        String
+  descripcion String?
+  createdAt  DateTime @default(now()) @map("fecha_creacion")
+
+  @@map("galeria_fotos")
+}
