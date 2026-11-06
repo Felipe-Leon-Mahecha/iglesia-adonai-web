@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, MapPin, Clock, CalendarDays, MessageCircle, Heart, Home as HomeIcon, Users, Flame } from "lucide-react";
+import { ArrowRight, MapPin, Clock, MessageCircle, Heart, Home as HomeIcon, Users, Flame } from "lucide-react";
 import { SITE } from "@/lib/site";
-import { getEventosPublicos } from "@/lib/queries";
+import { getEventosPublicos, getCohortesPublicas, getEventoBautismoActual } from "@/lib/queries";
 import { CTASection } from "@/components/site/CTASection";
+import { AnunciosCarousel, type Anuncio } from "@/components/site/AnunciosCarousel";
 import { formatFecha } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default function Home() {
         ))}
       </section>
 
-      <EventosDestacados />
+      <AnunciosHome />
 
       <section className="bg-beige-soft py-16">
         <div className="container-site grid items-center gap-10 lg:grid-cols-2">
@@ -76,7 +77,10 @@ export default function Home() {
         </div>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SITE.ministerios.slice(0, 6).map((m) => (
-            <Link key={m.id} href="/ministerios" className="card group transition-shadow hover:shadow-md">
+            <Link key={m.id} href="/ministerios" className="card group flex flex-col transition-shadow hover:shadow-md">
+              {m.logo && (
+                <img src={m.logo} alt={`Logo ${m.nombre}`} className="mb-2 h-12 w-12 rounded-full object-contain" />
+              )}
               <h3 className="font-display text-lg font-bold text-navy">{m.nombre}</h3>
               <p className="mt-1 text-sm text-navy/60">{m.descripcion}</p>
               <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-teal">
@@ -90,7 +94,12 @@ export default function Home() {
       <section className="bg-navy-deep py-16 text-white">
         <div className="container-site grid items-center gap-8 lg:grid-cols-2">
           <div>
-            <p className="kicker"><span className="text-beige">Casas Oasis</span></p>
+            <p className="kicker">
+              {SITE.logos.casasOasis && (
+                <img src={SITE.logos.casasOasis} alt="Logo Casa Oasis" className="h-10 w-10 rounded-full object-contain" />
+              )}
+              <span className="text-beige">Casas Oasis</span>
+            </p>
             <h2 className="mt-3 font-display text-3xl font-bold md:text-4xl">
               Pequeños grupos, crecimiento real
             </h2>
@@ -111,6 +120,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <Galeria />
 
       <CTASection />
     </>
@@ -170,35 +181,81 @@ function HomeHero() {
   );
 }
 
-async function EventosDestacados() {
-  const eventos = await getEventosPublicos();
-  const proximo = eventos.find((e) => new Date(e.fecha) >= new Date());
+async function AnunciosHome() {
+  const [eventos, cohortes, bautismo] = await Promise.all([
+    getEventosPublicos(),
+    getCohortesPublicas(),
+    getEventoBautismoActual(),
+  ]);
 
-  if (!proximo) return null;
+  const ahora = new Date();
+  const anuncios: Anuncio[] = [];
+
+  for (const e of eventos) {
+    if (new Date(e.fecha) < ahora) continue;
+    anuncios.push({
+      id: `evento-${e.id}`,
+      tipo: "EVENTO",
+      titulo: e.titulo,
+      descripcion: e.descripcion,
+      fechaLabel: formatFecha(e.fecha, true),
+      lugar: e.lugar ?? undefined,
+      imagen: e.imagen,
+      href: `/eventos/${e.slug}`,
+      cta: "Ver detalles",
+    });
+    if (anuncios.filter((a) => a.tipo === "EVENTO").length >= 3) break;
+  }
+
+  const cohorte = cohortes[0];
+  if (cohorte) {
+    anuncios.push({
+      id: `casas-${cohorte.id}`,
+      tipo: "CASAS",
+      titulo: "Próxima cohorte de Casas Oasis",
+      descripcion: "Inscríbete y crece en comunidad: Palabra, oración y amistad en grupos pequeños.",
+      fechaLabel: `Inicia ${formatFecha(cohorte.fechaInicio, true)}`,
+      imagen: SITE.imagenes.casasOasis,
+      href: "/casas-oasis",
+      cta: "Saber más",
+    });
+  }
+
+  if (bautismo) {
+    anuncios.push({
+      id: `bautismo-${bautismo.id}`,
+      tipo: "BAUTISMO",
+      titulo: "Servicio de bautismos",
+      descripcion: bautismo.requisitos,
+      fechaLabel: formatFecha(bautismo.fecha, true),
+      lugar: bautismo.lugar,
+      href: "/bautismos",
+      cta: "Saber más",
+    });
+  }
+
+  return <AnunciosCarousel anuncios={anuncios} />;
+}
+
+function Galeria() {
+  if (!SITE.imagenes.galeria.length) return null;
   return (
     <section className="container-site py-16">
-      <div className="card overflow-hidden !p-0">
-        <div className="grid md:grid-cols-[1fr_auto]">
-          <div className="p-7 md:p-9">
-            <p className="kicker"><span className="h-px w-8 bg-teal" />Próximo evento</p>
-            <h2 className="mt-3 font-display text-2xl font-bold text-navy md:text-3xl">{proximo.titulo}</h2>
-            <div className="mt-4 flex flex-wrap gap-4 text-sm text-navy/70">
-              <span className="inline-flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-teal" /> {formatFecha(proximo.fecha, true)}
-              </span>
-              {proximo.lugar && (
-                <span className="inline-flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-teal" /> {proximo.lugar}
-                </span>
-              )}
-            </div>
-            <p className="mt-4 line-clamp-3 max-w-xl text-navy/70">{proximo.descripcion}</p>
-            <Link href={`/eventos/${proximo.slug}`} className="btn-teal mt-6">
-              Ver detalles <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-          {proximo.imagen && <img src={proximo.imagen} alt={proximo.titulo} className="h-full max-h-80 w-full object-cover md:max-w-sm" />}
-        </div>
+      <div className="text-center">
+        <p className="kicker justify-center"><span className="h-px w-8 bg-teal" />Galería</p>
+        <h2 className="mt-3 font-display text-3xl font-bold text-navy md:text-4xl">Nuestra iglesia</h2>
+        <p className="mt-2 text-sm text-navy/60">Una mirada a lo que vivimos cada domingo.</p>
+      </div>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {SITE.imagenes.galeria.map((src, i) => (
+          <img
+            key={src}
+            src={src}
+            alt={`Foto de la iglesia ADONAI ${i + 1}`}
+            className="aspect-[4/3] w-full rounded-xl object-cover"
+            loading="lazy"
+          />
+        ))}
       </div>
     </section>
   );

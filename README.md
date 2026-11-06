@@ -12,12 +12,16 @@ Sitio público + portal interno (staff) para la iglesia cristiana ADONAI.
 ## Estructura
 
 - `/` página principal, `/nosotros`, `/servicios`, `/ministerios`, `/eventos`, `/sermones`, `/dar`, `/contacto` (+ `/jovenes`, `/asesoria`, `/ayuda-espiritual`, `/nuevo`), `/casas-oasis`, `/bautismos`, `/galeria`.
-- `/login` acceso al portal.
+- `/login` acceso al portal (correo/contraseña o Google).
+- `/recuperar-contrasena` y `/recuperar-contrasena/[token]` para restablecer la contraseña por correo.
+- `/cambiar-contrasena` cambio de contraseña autenticado (requiere sesión).
 - `/admin` panel privado: Inbox de contacto, Contabilidad, Servidores/logística, Alabanza, Discipulado, Casas Oasis, Bautismos, Contenido web, Usuarios.
 
 ## Roles
 
 `ADMIN`, `CONTABILIDAD`, `LOGISTICA`, `ALABANZA`, `EDITOR`. Los módulos del menú y las Server Actions se validan por rol en el servidor (`src/lib/role.ts` → `requiereRoles`, `asegurarRol`). Solo `ADMIN` gestiona usuarios.
+
+Una persona que entra por **Google** pero no tiene rol asignado ve la pantalla de "Acceso restringido" en `/admin/*` hasta que un `ADMIN` le asigne uno en `/admin/usuarios`.
 
 ## Setup local
 
@@ -40,6 +44,7 @@ npm run dev            # http://localhost:3000
 | `AUTH_TRUST_HOST` | `true` en local/Vercel. |
 | `RESEND_API_KEY` | Clave de Resend para notificaciones por correo. |
 | `MAIL_TO_PASTORES` | Correo que recibe las notificaciones de los formularios. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Credenciales OAuth de Google para el botón "Continuar con Google". |
 | `NEXT_PUBLIC_SITE_URL` | URL pública del sitio. |
 | `SEED_ADMIN_EMAIL_1..3` / `SEED_ADMIN_PASSWORD_1..3` | Credenciales de los 3 admins que crea el seed (opcional). |
 
@@ -56,6 +61,25 @@ para los tres correos (cambiar tras el primer ingreso):
 
 Se puede personalizar con las variables `SEED_ADMIN_EMAIL_1..3` y `SEED_ADMIN_PASSWORD_1..3`.
 Usuarios adicionales y sus roles se gestionan desde `/admin/usuarios`.
+
+## Iniciar sesión con Google
+
+El botón "Continuar con Google" está en `/login` y es la vía más cómoda para el staff:
+al entrar, el sistema detecta el correo y aplica los roles que ya tenga asignados en la DB.
+
+Para activarlo:
+
+1. En **Google Cloud Console → API y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**.
+2. Tipo **Aplicación web**; orígenes `http://localhost:3000`; URI de redireccionamiento `http://localhost:3000/api/auth/callback/google` (y la URL de producción con su dominio).
+3. Copia los valores a `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en `.env` (y en Vercel).
+4. Los correos de la iglesia deben estar **verificados** como usuarios normales (login con Google) o como
+   usuarios con correo/contraseña; quien no tenga rol verá "Acceso restringido" en `/admin` sin perder acceso al sitio público.
+
+## Contraseñas
+
+- **Cambiar**: `/cambiar-contrasena` (desde el menú del portal en "Cambiar contraseña"). Pide la contraseña actual y la nueva (mínimo 8 caracteres).
+- **Olvidé mi contraseña**: `/recuperar-contrasena` envía un correo con un enlace válido 30 minutos. Requiere `RESEND_API_KEY` configurada para que el correo llegue (en local sin correo el enlace se muestra por consola).
+- Las cuentas que entran solo con Google (sin contraseña) no pueden usar el cambio de contraseña.
 
 ## Comandos útiles
 
@@ -82,8 +106,14 @@ npx prisma migrate deploy   # en Vercel build, para aplicar migraciones
 ## Pendientes de marca
 
 Busca `[PENDIENTE:BRANDA]` en el código — concentrados en `src/lib/site.ts`:
-datos de los pastores, WhatsApp, datos de dar (Nequi/PSE), redes sociales
-y el correo `MAIL_TO_PASTORES`. El logo ya se copió a `public/logo-adonai.png`.
+redes sociales y datos de dar (Nequi/PSE). El logo ya se copió a `public/logo-adonai.png`.
+
+### Datos de contacto ya configurados
+
+- **Pastores** (en `SITE.pastores`, se muestran en `/nosotros` y en el directorio de `/contacto`):
+  - Apóstola **Isabel Mahecha** — teléfono/WhatsApp `310 488 56 09` — `isabelmahechamartinez@gmail.com`
+  - Pastor **Gustavo Adolfo Sánchez** — teléfono/WhatsApp `315 813 29 37` — `gustavoadolfosanchezr@gmail.com`
+- **WhatsApp general** (`SITE.contacto`): `+57 310 488 56 09`.
 
 ### Fotos de la iglesia
 
@@ -95,10 +125,14 @@ Copia tus fotos a `public/fotos/` y escribe su ruta en cada campo (`null` = no s
 | `imagenes.hero` | Fondo suave del inicio | Horizontal, 1600px+ |
 | `imagenes.nosotros` | Página Nosotros (historia) | 16:9 |
 | `imagenes.pastores` | Nosotros (equipo pastoral) | Panorámico, 21:9 |
-| `imagenes.casasOasis` | Página Casas Oasis | 16:9 |
+| `imagenes.casasOasis` | Casas Oasis + tarjeta del carrusel | 16:9 |
+| `imagenes.adoracion` | Página Servicios | Panorámico, 21:9 |
+| `imagenes.dar` | Página Diezmos y ofrendas | Panorámico, 21:9 |
+| `imagenes.galeria` | Tira de fotos del inicio | 4:3 (array de rutas) |
 
-Los ministerios tienen campo `foto` (por ejemplo `ministerios[0].foto`) y los pastores
-`pastores[i].foto` en el mismo archivo.
+Los ministerios tienen campo `foto` y `logo` (por ejemplo `ministerios[0].foto`), los pastores
+`pastores[i].foto`, y hay un bloque `SITE.logos` para las marcas propias
+(`casasOasis`, `jovenes`, `ninos`, `alabanza`, `matrimonios`, `mujeres`, `hombres`) en el mismo archivo.
 
 - **Eventos, sermones y galería**: sus fotos no van en `site.ts`; se suben desde el panel
   `/admin/contenido` (gestión de contenido) y las URLs quedan en la base de datos.
